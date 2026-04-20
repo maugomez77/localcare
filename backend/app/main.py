@@ -1,12 +1,24 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import dashboard, caregivers, families, bookings, reviews, payments
+from app.api import bookings, caregivers, dashboard, families, payments, reviews
+from app.store import bootstrap
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize Postgres schema (if DATABASE_URL set) and seed demo data when store is empty.
+    bootstrap()
+    yield
+
 
 app = FastAPI(
     title="LocalCare API",
     description="Two-sided marketplace connecting certified home health aides with families needing elder care",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

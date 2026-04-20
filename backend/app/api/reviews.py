@@ -1,22 +1,25 @@
 from fastapi import APIRouter, HTTPException
-from app.demo_data import REVIEWS, CAREGIVERS
+
 from app.models import ReviewCreate
+from app.store import load, save
 
 router = APIRouter(prefix="/api", tags=["reviews"])
 
 
 @router.get("/reviews")
 def list_reviews():
-    return {"reviews": REVIEWS, "total": len(REVIEWS)}
+    data = load()
+    return {"reviews": data["reviews"], "total": len(data["reviews"])}
 
 
 @router.get("/reviews/caregiver/{caregiver_id}")
 def get_caregiver_reviews(caregiver_id: str):
-    caregiver = next((c for c in CAREGIVERS if c["id"] == caregiver_id), None)
+    data = load()
+    caregiver = next((c for c in data["caregivers"] if c["id"] == caregiver_id), None)
     if not caregiver:
         raise HTTPException(status_code=404, detail="Caregiver not found")
 
-    caregiver_reviews = [r for r in REVIEWS if r["caregiver_id"] == caregiver_id]
+    caregiver_reviews = [r for r in data["reviews"] if r["caregiver_id"] == caregiver_id]
 
     avg_rating = (
         sum(r["rating"] for r in caregiver_reviews) / len(caregiver_reviews)
@@ -39,34 +42,35 @@ def get_caregiver_reviews(caregiver_id: str):
 
 
 @router.post("/reviews", status_code=201)
-def create_review(data: ReviewCreate):
-    caregiver = next((c for c in CAREGIVERS if c["id"] == data.caregiver_id), None)
+def create_review(data_in: ReviewCreate):
+    data = load()
+    caregiver = next((c for c in data["caregivers"] if c["id"] == data_in.caregiver_id), None)
     if not caregiver:
         raise HTTPException(status_code=404, detail="Caregiver not found")
 
-    from app.demo_data import FAMILIES
-    family = next((f for f in FAMILIES if f["id"] == data.family_id), None)
+    family = next((f for f in data["families"] if f["id"] == data_in.family_id), None)
     if not family:
         raise HTTPException(status_code=404, detail="Family not found")
 
-    new_id = f"rv-{len(REVIEWS) + 1:03d}"
+    new_id = f"rv-{len(data['reviews']) + 1:03d}"
     new_review = {
         "id": new_id,
-        "booking_id": data.booking_id,
-        "caregiver_id": data.caregiver_id,
+        "booking_id": data_in.booking_id,
+        "caregiver_id": data_in.caregiver_id,
         "caregiver_name": caregiver["name"],
-        "family_id": data.family_id,
+        "family_id": data_in.family_id,
         "family_name": family["name"],
-        "rating": data.rating,
-        "comment": data.comment,
+        "rating": data_in.rating,
+        "comment": data_in.comment,
         "created_at": "2026-03-26",
     }
-    REVIEWS.append(new_review)
+    data["reviews"].append(new_review)
 
-    caregiver_reviews = [r for r in REVIEWS if r["caregiver_id"] == data.caregiver_id]
+    caregiver_reviews = [r for r in data["reviews"] if r["caregiver_id"] == data_in.caregiver_id]
     caregiver["rating"] = round(
         sum(r["rating"] for r in caregiver_reviews) / len(caregiver_reviews), 1
     )
     caregiver["total_reviews"] = len(caregiver_reviews)
 
+    save(data)
     return new_review

@@ -1,22 +1,25 @@
 from fastapi import APIRouter, HTTPException
-from app.demo_data import FAMILIES, BOOKINGS
+
 from app.models import FamilyCreate, FamilyUpdate
+from app.store import load, save
 
 router = APIRouter(prefix="/api", tags=["families"])
 
 
 @router.get("/families")
 def list_families():
-    return {"families": FAMILIES, "total": len(FAMILIES)}
+    data = load()
+    return {"families": data["families"], "total": len(data["families"])}
 
 
 @router.get("/families/{family_id}")
 def get_family(family_id: str):
-    family = next((f for f in FAMILIES if f["id"] == family_id), None)
+    data = load()
+    family = next((f for f in data["families"] if f["id"] == family_id), None)
     if not family:
         raise HTTPException(status_code=404, detail="Family not found")
 
-    family_bookings = [b for b in BOOKINGS if b["family_id"] == family_id]
+    family_bookings = [b for b in data["bookings"] if b["family_id"] == family_id]
 
     return {
         **family,
@@ -25,37 +28,41 @@ def get_family(family_id: str):
 
 
 @router.post("/families", status_code=201)
-def create_family(data: FamilyCreate):
-    new_id = f"fm-{len(FAMILIES) + 1:03d}"
+def create_family(data_in: FamilyCreate):
+    data = load()
+    new_id = f"fm-{len(data['families']) + 1:03d}"
     new_family = {
         "id": new_id,
-        "name": data.name,
-        "email": data.email,
-        "phone": data.phone,
-        "location": data.location,
-        "care_recipient": data.care_recipient.model_dump(),
-        "preferred_schedule": data.preferred_schedule,
-        "budget_min": data.budget_min,
-        "budget_max": data.budget_max,
+        "name": data_in.name,
+        "email": data_in.email,
+        "phone": data_in.phone,
+        "location": data_in.location,
+        "care_recipient": data_in.care_recipient.model_dump(),
+        "preferred_schedule": data_in.preferred_schedule,
+        "budget_min": data_in.budget_min,
+        "budget_max": data_in.budget_max,
         "joined_date": "2026-03-26",
         "total_bookings": 0,
         "is_active": True,
     }
-    FAMILIES.append(new_family)
+    data["families"].append(new_family)
+    save(data)
     return new_family
 
 
 @router.patch("/families/{family_id}")
-def update_family(family_id: str, data: FamilyUpdate):
-    family = next((f for f in FAMILIES if f["id"] == family_id), None)
+def update_family(family_id: str, data_in: FamilyUpdate):
+    data = load()
+    family = next((f for f in data["families"] if f["id"] == family_id), None)
     if not family:
         raise HTTPException(status_code=404, detail="Family not found")
 
-    update_data = data.model_dump(exclude_none=True)
+    update_data = data_in.model_dump(exclude_none=True)
     for key, value in update_data.items():
         if key == "care_recipient" and value is not None:
             family[key] = value.model_dump() if hasattr(value, "model_dump") else value
         else:
             family[key] = value
 
+    save(data)
     return family

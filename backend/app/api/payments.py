@@ -1,18 +1,22 @@
 from fastapi import APIRouter
-from app.demo_data import PAYMENTS
+
+from app.store import load
 
 router = APIRouter(prefix="/api", tags=["payments"])
 
 
 @router.get("/payments")
 def list_payments():
-    return {"payments": PAYMENTS, "total": len(PAYMENTS)}
+    data = load()
+    return {"payments": data["payments"], "total": len(data["payments"])}
 
 
 @router.get("/payments/summary")
 def payment_summary():
-    completed = [p for p in PAYMENTS if p["status"] == "completed"]
-    pending = [p for p in PAYMENTS if p["status"] == "pending"]
+    data = load()
+    payments = data["payments"]
+    completed = [p for p in payments if p["status"] == "completed"]
+    pending = [p for p in payments if p["status"] == "pending"]
 
     total_revenue = sum(p["amount"] for p in completed)
     total_commission = sum(p["commission"] for p in completed)

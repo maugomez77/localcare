@@ -1,7 +1,9 @@
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
-from app.demo_data import CAREGIVERS, REVIEWS, BOOKINGS
+
+from fastapi import APIRouter, HTTPException, Query
+
 from app.models import CaregiverCreate, CaregiverUpdate
+from app.store import load, save
 
 router = APIRouter(prefix="/api", tags=["caregivers"])
 
@@ -15,7 +17,8 @@ def list_caregivers(
     min_rating: Optional[float] = Query(None),
     availability_day: Optional[str] = Query(None),
 ):
-    results = list(CAREGIVERS)
+    data = load()
+    results = list(data["caregivers"])
 
     if specialty:
         results = [c for c in results if specialty.lower() in [s.lower() for s in c["specialties"]]]
@@ -35,12 +38,13 @@ def list_caregivers(
 
 @router.get("/caregivers/{caregiver_id}")
 def get_caregiver(caregiver_id: str):
-    caregiver = next((c for c in CAREGIVERS if c["id"] == caregiver_id), None)
+    data = load()
+    caregiver = next((c for c in data["caregivers"] if c["id"] == caregiver_id), None)
     if not caregiver:
         raise HTTPException(status_code=404, detail="Caregiver not found")
 
-    caregiver_reviews = [r for r in REVIEWS if r["caregiver_id"] == caregiver_id]
-    caregiver_bookings = [b for b in BOOKINGS if b["caregiver_id"] == caregiver_id]
+    caregiver_reviews = [r for r in data["reviews"] if r["caregiver_id"] == caregiver_id]
+    caregiver_bookings = [b for b in data["bookings"] if b["caregiver_id"] == caregiver_id]
 
     return {
         **caregiver,
@@ -50,41 +54,45 @@ def get_caregiver(caregiver_id: str):
 
 
 @router.post("/caregivers", status_code=201)
-def create_caregiver(data: CaregiverCreate):
-    new_id = f"cg-{len(CAREGIVERS) + 1:03d}"
+def create_caregiver(data_in: CaregiverCreate):
+    data = load()
+    new_id = f"cg-{len(data['caregivers']) + 1:03d}"
     new_caregiver = {
         "id": new_id,
-        "name": data.name,
-        "email": data.email,
-        "phone": data.phone,
-        "photo_url": f"https://api.dicebear.com/7.x/avataaars/svg?seed={data.name.split()[0]}",
-        "bio": data.bio,
-        "certifications": data.certifications,
-        "specialties": data.specialties,
-        "hourly_rate": data.hourly_rate,
+        "name": data_in.name,
+        "email": data_in.email,
+        "phone": data_in.phone,
+        "photo_url": f"https://api.dicebear.com/7.x/avataaars/svg?seed={data_in.name.split()[0]}",
+        "bio": data_in.bio,
+        "certifications": data_in.certifications,
+        "specialties": data_in.specialties,
+        "hourly_rate": data_in.hourly_rate,
         "rating": 0.0,
         "total_reviews": 0,
         "years_experience": 0,
         "availability": {},
         "background_check_status": "pending",
-        "languages": data.languages,
-        "location": data.location,
+        "languages": data_in.languages,
+        "location": data_in.location,
         "joined_date": "2026-03-26",
         "total_bookings": 0,
         "is_active": True,
     }
-    CAREGIVERS.append(new_caregiver)
+    data["caregivers"].append(new_caregiver)
+    save(data)
     return new_caregiver
 
 
 @router.patch("/caregivers/{caregiver_id}")
-def update_caregiver(caregiver_id: str, data: CaregiverUpdate):
-    caregiver = next((c for c in CAREGIVERS if c["id"] == caregiver_id), None)
+def update_caregiver(caregiver_id: str, data_in: CaregiverUpdate):
+    data = load()
+    caregiver = next((c for c in data["caregivers"] if c["id"] == caregiver_id), None)
     if not caregiver:
         raise HTTPException(status_code=404, detail="Caregiver not found")
 
-    update_data = data.model_dump(exclude_none=True)
+    update_data = data_in.model_dump(exclude_none=True)
     for key, value in update_data.items():
         caregiver[key] = value
 
+    save(data)
     return caregiver

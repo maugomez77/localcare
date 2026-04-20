@@ -9,3 +9,5 @@ services:
     envVars:
       - key: FRONTEND_URL
         value: https://localcare-app.vercel.app
+      - key: DATABASE_URL
+        sync: false

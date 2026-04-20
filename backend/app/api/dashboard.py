@@ -1,20 +1,28 @@
 from fastapi import APIRouter
-from app.demo_data import CAREGIVERS, FAMILIES, BOOKINGS, REVIEWS, PAYMENTS
+
+from app.store import load
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
 
 @router.get("/dashboard")
 def get_dashboard():
-    total_bookings = len(BOOKINGS)
-    active_caregivers = len([c for c in CAREGIVERS if c["is_active"]])
-    families_served = len(FAMILIES)
+    data = load()
+    caregivers = data["caregivers"]
+    families = data["families"]
+    bookings = data["bookings"]
+    reviews = data["reviews"]
+    payments = data["payments"]
 
-    completed_payments = [p for p in PAYMENTS if p["status"] == "completed"]
+    total_bookings = len(bookings)
+    active_caregivers = len([c for c in caregivers if c["is_active"]])
+    families_served = len(families)
+
+    completed_payments = [p for p in payments if p["status"] == "completed"]
     monthly_revenue = sum(p["commission"] for p in completed_payments)
 
     avg_rating = (
-        sum(r["rating"] for r in REVIEWS) / len(REVIEWS) if REVIEWS else 0
+        sum(r["rating"] for r in reviews) / len(reviews) if reviews else 0
     )
 
     revenue_by_month = [
@@ -26,13 +34,13 @@ def get_dashboard():
         {"month": "Mar 2026", "revenue": 1228.80},
     ]
 
-    bookings_by_status = {}
-    for b in BOOKINGS:
+    bookings_by_status: dict[str, int] = {}
+    for b in bookings:
         status = b["status"]
         bookings_by_status[status] = bookings_by_status.get(status, 0) + 1
 
-    caregiver_ratings = {}
-    for r in REVIEWS:
+    caregiver_ratings: dict[str, dict] = {}
+    for r in reviews:
         cid = r["caregiver_id"]
         if cid not in caregiver_ratings:
             caregiver_ratings[cid] = {"total": 0, "count": 0, "name": r["caregiver_name"]}
@@ -40,14 +48,14 @@ def get_dashboard():
         caregiver_ratings[cid]["count"] += 1
 
     top_caregivers = []
-    for cid, data in caregiver_ratings.items():
-        cg = next((c for c in CAREGIVERS if c["id"] == cid), None)
+    for cid, d in caregiver_ratings.items():
+        cg = next((c for c in caregivers if c["id"] == cid), None)
         if cg:
             top_caregivers.append({
                 "id": cid,
-                "name": data["name"],
-                "rating": round(data["total"] / data["count"], 1),
-                "reviews": data["count"],
+                "name": d["name"],
+                "rating": round(d["total"] / d["count"], 1),
+                "reviews": d["count"],
                 "photo_url": cg["photo_url"],
                 "specialties": cg["specialties"],
             })
